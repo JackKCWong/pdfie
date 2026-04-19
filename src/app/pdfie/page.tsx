@@ -6,6 +6,65 @@ import dynamic from "next/dynamic";
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
 const PDFViewer = dynamic(() => import("@embedpdf/react-pdf-viewer").then((mod) => mod.PDFViewer), { ssr: false });
 
+interface PDFViewerFrameProps {
+  url: string;
+  hash: string;
+}
+
+function PDFViewerFrame({ url, hash }: PDFViewerFrameProps) {
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  return (
+    <iframe
+      ref={iframeRef}
+      src={`/pdf-viewer?url=${encodeURIComponent(url)}&hash=${encodeURIComponent(hash)}`}
+      className="w-full h-full border-0"
+      title="PDF Viewer"
+    />
+  );
+}
+
+interface EditorProps {
+  value: string;
+  onChange: (value: string) => void;
+  label: string;
+}
+
+function Editor({ value, onChange, label }: EditorProps) {
+  const [localValue, setLocalValue] = useState(value);
+
+  useEffect(() => {
+    setLocalValue(value);
+  }, [value]);
+
+  const handleChange = (val: string | undefined) => {
+    setLocalValue(val || "");
+  };
+
+  return (
+    <div className="h-full flex flex-col">
+      <div className="px-3 py-2 bg-zinc-100 border-b border-zinc-200 text-sm font-medium text-zinc-700">
+        {label}
+      </div>
+      <div className="flex-1 min-h-0">
+        <MonacoEditor
+          language="markdown"
+          value={localValue}
+          onChange={handleChange}
+          theme="vs"
+          options={{ minimap: { enabled: false } }}
+          onMount={(editor) => {
+            editor.onDidBlurEditorWidget(() => {
+              const currentValue = editor.getValue();
+              onChange(currentValue);
+            });
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
 interface Model {
   id: string;
   provider: string;
@@ -516,12 +575,9 @@ export default function PdfiePage() {
             <div className="flex-1 min-h-0 overflow-hidden">
               {activeTab === "pdf" ? (
                 <div className="h-full overflow-y-auto">
-                  <PDFViewer
-                    key={selectedFile.hash}
-                    config={{
-                      src: `${window.location.origin}${selectedFile.url}`,
-                    }}
-                    style={{ width: "100%", height: "100%" }}
+                  <PDFViewerFrame
+                    url={`${window.location.origin}${selectedFile.url}`}
+                    hash={selectedFile.hash}
                   />
                 </div>
               ) : activeTab === "textLayer" ? (
@@ -567,29 +623,22 @@ export default function PdfiePage() {
           </div>
         )}
       </div>
-      <div id="editor-panel" className="w-[45%] h-screen shrink-0 flex flex-col overflow-hidden">
-          <div className="h-[60%] border-b border-zinc-200 flex flex-col">
-            <div className="px-3 py-2 bg-zinc-100 border-b border-zinc-200 text-sm font-medium text-zinc-700">
-              System Prompt
-            </div>
-            <MonacoEditor
-              language="markdown"
+      <div
+          id="editor-panel"
+          className="w-[45%] h-screen shrink-0 flex flex-col overflow-hidden"
+        >
+          <div className="h-[60%] border-b border-zinc-200">
+            <Editor
               value={editor1Content}
-              onChange={(val) => setEditor1Content(val || "")}
-              theme="vs"
-              options={{ minimap: { enabled: false } }}
+              onChange={setEditor1Content}
+              label="System Prompt"
             />
           </div>
-          <div className="h-[40%] flex flex-col">
-            <div className="px-3 py-2 bg-zinc-100 border-b border-zinc-200 text-sm font-medium text-zinc-700">
-              Output Format
-            </div>
-            <MonacoEditor
-              language="markdown"
+          <div className="h-[40%]">
+            <Editor
               value={editor2Content}
-              onChange={(val) => setEditor2Content(val || "")}
-              theme="vs"
-              options={{ minimap: { enabled: false } }}
+              onChange={setEditor2Content}
+              label="Output Format"
             />
           </div>
         </div>
