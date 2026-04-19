@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
@@ -15,6 +15,32 @@ interface UploadedFile {
 
 type TabType = "pdf" | "textLayer" | "extraction";
 
+const STORAGE_KEYS = {
+  files: "pdfie_files",
+  systemPrompt: "pdfie_systemPrompt",
+  outputFormat: "pdfie_outputFormat",
+  extractionResult: "pdfie_extractionResult",
+} as const;
+
+function loadFromStorage<T>(key: string, defaultValue: T): T {
+  if (typeof window === "undefined") return defaultValue;
+  try {
+    const stored = localStorage.getItem(key);
+    return stored ? JSON.parse(stored) : defaultValue;
+  } catch {
+    return defaultValue;
+  }
+}
+
+function saveToStorage<T>(key: string, value: T): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Ignore storage errors
+  }
+}
+
 export default function PdfiePage() {
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [selectedFile, setSelectedFile] = useState<UploadedFile | null>(null);
@@ -24,6 +50,25 @@ export default function PdfiePage() {
   const [activeTab, setActiveTab] = useState<TabType>("pdf");
   const [extractionResult, setExtractionResult] = useState<string | null>(null);
   const [isExtracting, setIsExtracting] = useState(false);
+  const isHydrated = useRef(false);
+  const [windowSize, setWindowSize] = useState({ width: 0, height: 0 });
+
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowSize({ width: window.innerWidth, height: window.innerHeight });
+    };
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  useEffect(() => {
+    setFiles(loadFromStorage(STORAGE_KEYS.files, []));
+    setEditor1Content(loadFromStorage(STORAGE_KEYS.systemPrompt, ""));
+    setEditor2Content(loadFromStorage(STORAGE_KEYS.outputFormat, ""));
+    setExtractionResult(loadFromStorage(STORAGE_KEYS.extractionResult, null));
+    isHydrated.current = true;
+  }, []);
 
   const extractTextFromPdf = async (url: string): Promise<string | null> => {
     try {
@@ -107,9 +152,39 @@ export default function PdfiePage() {
     }
   }, [selectedFile]);
 
+  useEffect(() => {
+    if (isHydrated.current) {
+      saveToStorage(STORAGE_KEYS.files, files);
+    }
+  }, [files]);
+
+  useEffect(() => {
+    if (isHydrated.current) {
+      saveToStorage(STORAGE_KEYS.systemPrompt, editor1Content);
+    }
+  }, [editor1Content]);
+
+  useEffect(() => {
+    if (isHydrated.current) {
+      saveToStorage(STORAGE_KEYS.outputFormat, editor2Content);
+    }
+  }, [editor2Content]);
+
+  useEffect(() => {
+    if (isHydrated.current) {
+      saveToStorage(STORAGE_KEYS.extractionResult, extractionResult);
+    }
+  }, [extractionResult]);
+
+  useEffect(() => {
+    if (isHydrated.current && files.length > 0 && !selectedFile) {
+      setSelectedFile(files[0]);
+    }
+  }, [files, selectedFile]);
+
   return (
     <div className="flex flex-1 bg-white">
-      <div className="w-64 border-r border-zinc-200 p-6">
+      <div id="file-panel" className="w-[15%] h-screen border-r border-zinc-200 p-6 overflow-y-auto">
         <h1 className="text-xl font-semibold text-zinc-900 mb-6">PDFie</h1>
         <label className="block">
           <span className="sr-only">Choose PDF files</span>
@@ -178,10 +253,10 @@ export default function PdfiePage() {
           </button>
         </div>
       </div>
-      <div className="flex-1 flex">
+      <div id="viewer-panel" className="w-[40%] h-screen overflow-y-auto">
         {selectedFile ? (
-          <div className="w-[50%] flex flex-col">
-            <div className="flex border-b border-zinc-200">
+          <div className="w-full h-full flex flex-col min-h-0">
+            <div className="flex border-b border-zinc-200 shrink-0">
               <button
                 type="button"
                 onClick={() => setActiveTab("pdf")}
@@ -216,15 +291,17 @@ export default function PdfiePage() {
                 Extraction
               </button>
             </div>
-            <div className="flex-1">
+            <div className="flex-1 min-h-0 overflow-hidden">
               {activeTab === "pdf" ? (
-                <PDFViewer
-                  key={selectedFile.hash}
-                  config={{
-                    src: `${window.location.origin}${selectedFile.url}`,
-                  }}
-                  style={{ width: "100%", height: "100%" }}
-                />
+                <div className="h-full overflow-y-auto">
+                  <PDFViewer
+                    key={selectedFile.hash}
+                    config={{
+                      src: `${window.location.origin}${selectedFile.url}`,
+                    }}
+                    style={{ width: "100%", height: "100%" }}
+                  />
+                </div>
               ) : activeTab === "textLayer" ? (
                 selectedFile.textContent ? (
                   <MonacoEditor
@@ -263,11 +340,12 @@ export default function PdfiePage() {
             </div>
           </div>
         ) : (
-          <div className="w-[50%] flex items-center justify-center bg-zinc-50">
+          <div className="w-full h-full flex items-center justify-center bg-zinc-50">
             <p className="text-zinc-400">Select PDF files to begin</p>
           </div>
         )}
-        <div className="flex-1 flex flex-col">
+      </div>
+      <div id="editor-panel" className="w-[45%] h-screen shrink-0 flex flex-col overflow-hidden">
           <div className="h-[60%] border-b border-zinc-200 flex flex-col">
             <div className="px-3 py-2 bg-zinc-100 border-b border-zinc-200 text-sm font-medium text-zinc-700">
               System Prompt
@@ -293,7 +371,6 @@ export default function PdfiePage() {
             />
           </div>
         </div>
-      </div>
     </div>
   );
 }
