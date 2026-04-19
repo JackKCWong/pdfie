@@ -11,7 +11,7 @@ export const imageExtractAgent = new Agent({
 
 If given a PDF page image, extract all text content from it including headers, body text, tables, and any other text elements.`,
   model: {
-    id: "minimax-cn-coding-plan/MiniMax-M2.7",
-    apiKey: process.env.MINIMAX_API_KEY
+    id: "alibaba-cn/qwen-omni-turbo",
+    apiKey: process.env.ALIBABA_API_KEY,
   },
 });
