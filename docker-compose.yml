@@ -1,0 +1,10 @@
+services:
+  dev:
+    build:
+      context: .
+      dockerfile: dev.Dockerfile
+    ports:
+      - "3000:3000"
+      - "4111:4111"
+    volumes:
+      - ./.mastra:/mastra

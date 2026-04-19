@@ -1,0 +1,36 @@
+# Ignore docker files
+*.Dockerfile
+docker*
+**/docker*
+
+# Git
+.git
+.gitignore
+
+# Node
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Next.js
+.next
+out
+
+# Environment
+.env*
+.vercel
+
+# IDE
+.DS_Store
+*.pem
+
+# Misc
+*.tsbuildinfo
+next-env.d.ts
+.mastra
+mastra.db*
+coverage
+.pnp
+.pnp.*
+.yarn
