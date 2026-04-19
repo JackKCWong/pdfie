@@ -38,7 +38,9 @@ function Editor({ value, onChange, label }: EditorProps) {
   }, [value]);
 
   const handleChange = (val: string | undefined) => {
-    setLocalValue(val || "");
+    const newValue = val || "";
+    setLocalValue(newValue);
+    onChange(newValue);
   };
 
   return (
@@ -53,12 +55,6 @@ function Editor({ value, onChange, label }: EditorProps) {
           onChange={handleChange}
           theme="vs"
           options={{ minimap: { enabled: false } }}
-          onMount={(editor) => {
-            editor.onDidBlurEditorWidget(() => {
-              const currentValue = editor.getValue();
-              onChange(currentValue);
-            });
-          }}
         />
       </div>
     </div>
@@ -76,15 +72,9 @@ function TextLayerEditor({ value, onChange }: { value: string; onChange: (val: s
     <MonacoEditor
       language="markdown"
       value={localValue}
-      onChange={(val) => setLocalValue(val || "")}
+      onChange={(val) => onChange(val || "")}
       theme="vs"
       options={{ minimap: { enabled: false }, wordWrap: "on" }}
-      onMount={(editor) => {
-        editor.onDidBlurEditorWidget(() => {
-          const currentValue = editor.getValue();
-          onChange(currentValue);
-        });
-      }}
     />
   );
 }
