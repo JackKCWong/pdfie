@@ -9,14 +9,18 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@embedpdf/react-pdf-viewer": "^2.14.0",
     "@mastra/core": "^1.25.0",
     "@mastra/duckdb": "^1.1.2",
     "@mastra/libsql": "^1.8.1",
     "@mastra/loggers": "^1.1.1",
     "@mastra/memory": "^1.15.1",
     "@mastra/observability": "^1.9.1",
+    "@monaco-editor/react": "^4.7.0",
+    "@uiw/react-md-editor": "^4.1.0",
     "mastra": "^1.6.0",
     "next": "16.2.4",
+    "pdfjs-dist": "^5.6.205",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "zod": "^4.3.6"

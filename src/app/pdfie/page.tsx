@@ -1,16 +1,109 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import dynamic from "next/dynamic";
+
+const MonacoEditor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
+const PDFViewer = dynamic(() => import("@embedpdf/react-pdf-viewer").then((mod) => mod.PDFViewer), { ssr: false });
+
+interface UploadedFile {
+  name: string;
+  hash: string;
+  url: string;
+  textContent: string | null;
+}
+
+type TabType = "pdf" | "textLayer";
 
 export default function PdfiePage() {
-  const [files, setFiles] = useState<string[]>([]);
+  const [files, setFiles] = useState<UploadedFile[]>([]);
+  const [selectedFile, setSelectedFile] = useState<UploadedFile | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [editor1Content, setEditor1Content] = useState("");
+  const [editor2Content, setEditor2Content] = useState("");
+  const [activeTab, setActiveTab] = useState<TabType>("pdf");
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const fileList = e.target.files;
-    if (fileList) {
-      setFiles(Array.from(fileList).map((f) => f.name));
+  const extractTextFromPdf = async (url: string): Promise<string | null> => {
+    try {
+      const pdfjsLib = await import("pdfjs-dist");
+      pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+        "pdfjs-dist/build/pdf.worker.min.mjs",
+        import.meta.url
+      ).href;
+      const loadingTask = pdfjsLib.getDocument(url);
+      const pdf = await loadingTask.promise;
+      let fullText = "";
+
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items
+          .map((item: any) => item.str)
+          .join(" ");
+        fullText += `# page ${i}\n${pageText}\n\n`;
+      }
+
+      return fullText.trim() || null;
+    } catch (err) {
+      console.error("Error extracting text:", err);
+      return null;
     }
   };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileList = e.target.files;
+    if (!fileList || fileList.length === 0) return;
+
+    setUploading(true);
+
+    const uploadedFiles: UploadedFile[] = [];
+
+    for (const file of Array.from(fileList)) {
+      if (file.type !== "application/pdf") continue;
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      try {
+        const res = await fetch("/api/pdf-upload", {
+          method: "POST",
+          body: formData,
+        });
+        const data = await res.json();
+        const fullUrl = `${window.location.origin}${data.url}`;
+        const textContent = await extractTextFromPdf(fullUrl);
+
+        uploadedFiles.push({
+          name: file.name,
+          hash: data.hash,
+          url: data.url,
+          textContent,
+        });
+      } catch (err) {
+        console.error("Upload failed:", err);
+      }
+    }
+
+    setFiles((prev) => [...prev, ...uploadedFiles]);
+    setUploading(false);
+  };
+
+  useEffect(() => {
+    if (selectedFile) {
+      const file = files.find((f) => f.hash === selectedFile.hash);
+      if (file && file.textContent === undefined) {
+        const fullUrl = `${window.location.origin}${selectedFile.url}`;
+        extractTextFromPdf(fullUrl).then((text) => {
+          setFiles((prev) =>
+            prev.map((f) =>
+              f.hash === selectedFile.hash ? { ...f, textContent: text } : f
+            )
+          );
+          setSelectedFile((prev) => (prev ? { ...prev, textContent: text } : null));
+        });
+      }
+    }
+  }, [selectedFile]);
 
   return (
     <div className="flex flex-1 bg-white">
@@ -23,21 +116,121 @@ export default function PdfiePage() {
             accept="application/pdf"
             multiple
             onChange={handleFileChange}
-            className="block w-full text-sm text-zinc-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-medium file:bg-zinc-100 file:text-zinc-900 hover:file:bg-zinc-200 cursor-pointer"
+            disabled={uploading}
+            className="block w-full text-sm text-zinc-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-medium file:bg-zinc-100 file:text-zinc-900 hover:file:bg-zinc-200 cursor-pointer disabled:opacity-50"
           />
         </label>
+        {uploading && (
+          <p className="mt-4 text-sm text-zinc-500">Uploading...</p>
+        )}
         {files.length > 0 && (
           <ul className="mt-6 space-y-2">
-            {files.map((name) => (
-              <li key={name} className="text-sm text-zinc-600 truncate">
-                {name}
+            {files.map((file) => (
+              <li key={file.hash}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedFile(file);
+                    setActiveTab("pdf");
+                  }}
+                  className={`text-sm text-left truncate w-full px-2 py-1 rounded ${
+                    selectedFile?.hash === file.hash
+                      ? "bg-zinc-200 text-zinc-900"
+                      : "text-zinc-600 hover:bg-zinc-100"
+                  }`}
+                >
+                  {file.name}
+                </button>
               </li>
             ))}
           </ul>
         )}
       </div>
-      <div className="flex-1 flex items-center justify-center">
-        <p className="text-zinc-400">Select PDF files to begin</p>
+      <div className="flex-1 flex">
+        {selectedFile ? (
+          <div className="w-[50%] flex flex-col">
+            <div className="flex border-b border-zinc-200">
+              <button
+                type="button"
+                onClick={() => setActiveTab("pdf")}
+                className={`px-4 py-2 text-sm font-medium ${
+                  activeTab === "pdf"
+                    ? "text-zinc-900 border-b-2 border-zinc-900"
+                    : "text-zinc-500 hover:text-zinc-700"
+                }`}
+              >
+                PDF
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("textLayer")}
+                className={`px-4 py-2 text-sm font-medium ${
+                  activeTab === "textLayer"
+                    ? "text-zinc-900 border-b-2 border-zinc-900"
+                    : "text-zinc-500 hover:text-zinc-700"
+                }`}
+              >
+                Text Layer
+              </button>
+            </div>
+            <div className="flex-1">
+              {activeTab === "pdf" ? (
+                <PDFViewer
+                  key={selectedFile.hash}
+                  config={{
+                    src: `${window.location.origin}${selectedFile.url}`,
+                  }}
+                  style={{ width: "100%", height: "100%" }}
+                />
+              ) : selectedFile.textContent ? (
+                <MonacoEditor
+                  language="markdown"
+                  value={selectedFile.textContent}
+                  theme="vs"
+                  options={{
+                    minimap: { enabled: false },
+                    readOnly: true,
+                    wordWrap: "on",
+                  }}
+                />
+              ) : (
+                <div className="flex items-center justify-center h-full text-zinc-400">
+                  No text layer available
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="w-[50%] flex items-center justify-center bg-zinc-50">
+            <p className="text-zinc-400">Select PDF files to begin</p>
+          </div>
+        )}
+        <div className="flex-1 flex flex-col">
+          <div className="h-[60%] border-b border-zinc-200 flex flex-col">
+            <div className="px-3 py-2 bg-zinc-100 border-b border-zinc-200 text-sm font-medium text-zinc-700">
+              System Prompt
+            </div>
+            <MonacoEditor
+              language="markdown"
+              value={editor1Content}
+              onChange={(val) => setEditor1Content(val || "")}
+              theme="vs"
+              options={{ minimap: { enabled: false } }}
+            />
+          </div>
+          <div className="h-[40%] flex flex-col">
+            <div className="px-3 py-2 bg-zinc-100 border-b border-zinc-200 text-sm font-medium text-zinc-700">
+              Output Format
+            </div>
+            <MonacoEditor
+              language="markdown"
+              value={editor2Content}
+              onChange={(val) => setEditor2Content(val || "")}
+              theme="vs"
+              options={{ minimap: { enabled: false } }}
+            />
+          </div>
+        </div>
       </div>
     </div>
   );
