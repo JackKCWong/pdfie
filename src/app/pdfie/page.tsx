@@ -233,6 +233,11 @@ export default function PdfiePage() {
     }
   };
 
+  const handleDeleteFile = (hash: string) => {
+    setFiles((prev) => prev.filter((f) => f.hash !== hash));
+    setSelectedFile((prev) => (prev?.hash === hash ? null : prev));
+  };
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const fileList = e.target.files;
     if (!fileList || fileList.length === 0) return;
@@ -339,20 +344,28 @@ export default function PdfiePage() {
         {files.length > 0 && (
           <ul className="mt-6 space-y-2">
             {files.map((file) => (
-              <li key={file.hash}>
+              <li key={file.hash} className="flex items-center gap-1">
                 <button
                   type="button"
                   onClick={() => {
                     setSelectedFile(file);
                     setActiveTab("pdf");
                   }}
-                  className={`text-sm text-left truncate w-full px-2 py-1 rounded ${
+                  className={`text-sm text-left truncate flex-1 px-2 py-1 rounded ${
                     selectedFile?.hash === file.hash
                       ? "bg-zinc-200 text-zinc-900"
                       : "text-zinc-600 hover:bg-zinc-100"
                   }`}
                 >
                   {file.name}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteFile(file.hash)}
+                  className="text-zinc-400 hover:text-red-500 px-1 py-1 text-sm"
+                  title="Delete file"
+                >
+                  ×
                 </button>
               </li>
             ))}
