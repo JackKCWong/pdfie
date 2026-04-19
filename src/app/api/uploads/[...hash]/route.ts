@@ -10,12 +10,23 @@ export async function GET(
   try {
     const { hash } = await params;
     const filename = hash[hash.length - 1];
-    const cleanHash = filename.replace(/\.pdf$/i, '');
+    const cleanHash = filename.replace(/\.(pdf|png)$/i, '');
 
     const uploadsDir = path.join(os.tmpdir(), 'pdfie-uploads');
-    const filePath = path.join(uploadsDir, `${cleanHash}.pdf`);
 
-    if (!fs.existsSync(filePath)) {
+    const pdfPath = path.join(uploadsDir, `${cleanHash}.pdf`);
+    const pngPath = path.join(uploadsDir, `${cleanHash}.png`);
+
+    let filePath: string;
+    let contentType: string;
+
+    if (fs.existsSync(pdfPath)) {
+      filePath = pdfPath;
+      contentType = 'application/pdf';
+    } else if (fs.existsSync(pngPath)) {
+      filePath = pngPath;
+      contentType = 'image/png';
+    } else {
       return NextResponse.json({ error: 'File not found' }, { status: 404 });
     }
 
@@ -23,8 +34,8 @@ export async function GET(
 
     return new NextResponse(buffer, {
       headers: {
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `inline; filename="${cleanHash}.pdf"`,
+        'Content-Type': contentType,
+        'Content-Disposition': `inline; filename="${cleanHash}"`,
         'Content-Length': buffer.length.toString(),
       },
     });

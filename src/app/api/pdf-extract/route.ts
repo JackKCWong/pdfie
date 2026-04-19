@@ -1,6 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PDFiumLibrary } from '@hyzyla/pdfium';
+import { PDFiumLibrary, PDFiumPageRenderOptions } from '@hyzyla/pdfium';
 import sharp from 'sharp';
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
+import crypto from 'crypto';
+
+async function renderToPng(options: PDFiumPageRenderOptions) {
+  console.log('Rendering page to PNG with options: data.length=%d', options.data.length);
+  console.log('Rendering page to PNG with options: width=%d, height=%d', options.width, options.height);
+  return await sharp(options.data, {
+    raw: {
+      width: options.width,
+      height: options.height,
+      channels: 4,
+    },
+  })
+    .png()
+    .toBuffer();
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,8 +33,14 @@ export async function POST(request: NextRequest) {
     const pages: number[] = pagesStr ? JSON.parse(pagesStr) : undefined;
 
     const pdfBuffer = Buffer.from(await file.arrayBuffer());
+    const pdfHash = crypto.createHash('sha256').update(pdfBuffer).digest('hex');
 
-    const scale = 2;
+    const uploadsDir = path.join(os.tmpdir(), 'pdfie-uploads');
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+
+    const scale = 3;
     const library = await PDFiumLibrary.init();
     const document = await library.loadDocument(new Uint8Array(pdfBuffer));
 
@@ -25,6 +49,7 @@ export async function POST(request: NextRequest) {
       base64Image: string;
       width: number;
       height: number;
+      url: string;
     }> = [];
 
     const pagesToProcess = pages && pages.length > 0
@@ -38,57 +63,64 @@ export async function POST(request: NextRequest) {
       }
 
       const page = document.getPage(pageIndex);
-      const rendered = await page.render({ scale });
+      const size = page.getOriginalSize();
+      const pngBuffer = await page.render({
+        scale,
+        render: renderToPng,
+      });
 
-      const pngBuffer = await sharp(Buffer.from(rendered.data), {
-        raw: {
-          width: rendered.width,
-          height: rendered.height,
-          channels: 4,
-        },
-      })
-        .png()
-        .toBuffer();
+      console.log('Rendered page %d to PNG, buffer length: %d, type: %s', pageNum, pngBuffer.data.length, Buffer.isBuffer(pngBuffer.data));
+
+      const imageHash = `${pdfHash}-${pageNum}`;
+      const imagePath = path.join(uploadsDir, `${imageHash}.png`);
+      fs.writeFileSync(imagePath, pngBuffer.data);
+
+      const base64Image = Buffer.from(pngBuffer.data).toString('base64');
+      console.log('Converted page %d PNG to base64, length: %d', pageNum, base64Image.length);
 
       images.push({
         pageNumber: pageNum,
-        base64Image: pngBuffer.toString('base64'),
-        width: rendered.width,
-        height: rendered.height,
+        base64Image: base64Image,
+        width: Math.floor(size.originalWidth * scale),
+        height: Math.floor(size.originalHeight * scale),
+        url: `/api/uploads/${imageHash}`,
       });
     }
+
+    const content = images.map(img => ({
+      type: 'image' as const,
+      // image: `http://localhost:3000${img.url}`,
+      image: `data:image/png;base64,${img.base64Image}`,
+      mimeType: 'image/png',
+    }));
 
     document.destroy();
     library.destroy();
 
-    const content = images.map(img => ({
-      type: 'image' as const,
-      data: `data:image/png;base64,${img.base64Image}`,
-      mimeType: 'image/png',
-    }));
+    const body = JSON.stringify({
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: 'Extract all text content from these PDF page images. Return the extracted text preserving structure as much as possible.',
+            },
+            ...content,
+          ],
+        },
+      ],
+      maxSteps: 1,
+    });
 
     const agentResponse = await fetch('http://localhost:4111/api/agents/image-extract-agent/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: 'Extract all text content from these PDF page images. Return the extracted text preserving structure as much as possible.',
-              },
-              ...content,
-            ],
-          },
-        ],
-        maxSteps: 1,
-      }),
+      body: body,
     });
 
     const data = await agentResponse.json();
-    return NextResponse.json({ text: data.text, pages: pagesToProcess });
+    return NextResponse.json({ text: data.text, pages: pagesToProcess, hashes: images.map(img => ({ pageNumber: img.pageNumber, hash: `${pdfHash}-${img.pageNumber}`, url: img.url })) });
   } catch (error) {
     console.error('PDF extract error:', error);
     return NextResponse.json({ error: 'PDF extraction failed' }, { status: 500 });
