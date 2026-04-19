@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 
 const PDFViewer = dynamic(() => import("@embedpdf/react-pdf-viewer").then((mod) => mod.PDFViewer), { ssr: false });
@@ -9,11 +9,28 @@ export default function PdfViewerPage() {
   const [url, setUrl] = useState<string | null>(null);
   const [hash, setHash] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
+  const viewerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setUrl(new URLSearchParams(window.location.search).get("url"));
-    setHash(new URLSearchParams(window.location.search).get("hash"));
-    setMounted(true);
+    const loadFromParams = () => {
+      const params = new URLSearchParams(window.location.search);
+      setUrl(params.get("url"));
+      setHash(params.get("hash"));
+      setMounted(true);
+    };
+
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === "LOAD_PDF") {
+        setUrl(event.data.url);
+        setHash(event.data.hash);
+        setMounted(true);
+      }
+    };
+
+    window.addEventListener("message", handleMessage);
+    loadFromParams();
+
+    return () => window.removeEventListener("message", handleMessage);
   }, []);
 
   if (!mounted) {
@@ -33,9 +50,9 @@ export default function PdfViewerPage() {
   }
 
   return (
-    <div className="w-full h-screen">
+    <div className="w-full h-screen" ref={viewerRef}>
       <PDFViewer
-        key={hash}
+        key={url}
         config={{
           src: url,
         }}

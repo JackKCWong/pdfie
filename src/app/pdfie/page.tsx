@@ -14,12 +14,23 @@ interface PDFViewerFrameProps {
 function PDFViewerFrame({ url, hash }: PDFViewerFrameProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
+  useEffect(() => {
+    if (iframeRef.current?.contentWindow) {
+      iframeRef.current.contentWindow.postMessage({ type: "LOAD_PDF", url, hash }, "*");
+    }
+  }, [url, hash]);
+
   return (
     <iframe
       ref={iframeRef}
-      src={`/pdf-viewer?url=${encodeURIComponent(url)}&hash=${encodeURIComponent(hash)}`}
+      src="/pdf-viewer"
       className="w-full h-full border-0"
       title="PDF Viewer"
+      onLoad={() => {
+        if (iframeRef.current?.contentWindow) {
+          iframeRef.current.contentWindow.postMessage({ type: "LOAD_PDF", url, hash }, "*");
+        }
+      }}
     />
   );
 }
