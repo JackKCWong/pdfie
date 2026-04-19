@@ -6,6 +6,20 @@ import dynamic from "next/dynamic";
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
 const PDFViewer = dynamic(() => import("@embedpdf/react-pdf-viewer").then((mod) => mod.PDFViewer), { ssr: false });
 
+interface Model {
+  id: string;
+  provider: string;
+  providerName: string;
+  model: string;
+}
+
+interface Agent {
+  id: string;
+  name: string;
+  provider: string;
+  modelId: string;
+}
+
 interface UploadedFile {
   name: string;
   hash: string;
@@ -50,6 +64,10 @@ export default function PdfiePage() {
   const [activeTab, setActiveTab] = useState<TabType>("pdf");
   const [extractionResult, setExtractionResult] = useState<string | null>(null);
   const [isExtracting, setIsExtracting] = useState(false);
+  const [models, setModels] = useState<Model[]>([]);
+  const [selectedModel, setSelectedModel] = useState<string>('');
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const [selectedAgent, setSelectedAgent] = useState<string>('');
   const isHydrated = useRef(false);
   const [windowSize, setWindowSize] = useState({ width: 0, height: 0 });
 
@@ -69,6 +87,45 @@ export default function PdfiePage() {
     setExtractionResult(loadFromStorage(STORAGE_KEYS.extractionResult, null));
     isHydrated.current = true;
   }, []);
+
+  useEffect(() => {
+    fetch('/api/models')
+      .then((res) => res.json())
+      .then((data) => {
+        setModels(data.models || []);
+      })
+      .catch(console.error);
+  }, []);
+
+  useEffect(() => {
+    fetch('http://localhost:4111/api/agents')
+      .then((res) => res.json())
+      .then((data) => {
+        const agentList: Agent[] = Object.entries(data).map(([id, agent]: [string, any]) => ({
+          id,
+          name: agent.name,
+          provider: agent.provider,
+          modelId: agent.modelId,
+        }));
+        setAgents(agentList);
+        if (agentList.length > 0) {
+          setSelectedAgent(agentList[0].id);
+        }
+      })
+      .catch(console.error);
+  }, []);
+
+  useEffect(() => {
+    if (selectedAgent && agents.length > 0) {
+      const agent = agents.find((a) => a.id === selectedAgent);
+      if (agent) {
+        const filtered = models.filter((m) => m.provider === agent.provider);
+        if (filtered.length > 0) {
+          setSelectedModel(filtered[0].id);
+        }
+      }
+    }
+  }, [selectedAgent, agents, models]);
 
   const extractTextFromPdf = async (url: string): Promise<string | null> => {
     try {
@@ -223,6 +280,30 @@ export default function PdfiePage() {
           </ul>
         )}
         <div className="mt-auto pt-6">
+          <label className="block text-xs text-zinc-500 mb-1">Agent</label>
+          <select
+            value={selectedAgent}
+            onChange={(e) => setSelectedAgent(e.target.value)}
+            className="w-full mb-2 px-3 py-2 text-sm border border-zinc-300 rounded-lg bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {agents.map((agent) => (
+              <option key={agent.id} value={agent.id}>
+                {agent.name}
+              </option>
+            ))}
+          </select>
+          <label className="block text-xs text-zinc-500 mb-1">Model</label>
+          <select
+            value={selectedModel}
+            onChange={(e) => setSelectedModel(e.target.value)}
+            className="w-full mb-2 px-3 py-2 text-sm border border-zinc-300 rounded-lg bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {models.filter((m) => m.provider === agents.find((a) => a.id === selectedAgent)?.provider).map((model) => (
+              <option key={model.id} value={model.id}>
+                {model.model}
+              </option>
+            ))}
+          </select>
           <button
             type="button"
             onClick={async () => {
@@ -236,6 +317,8 @@ export default function PdfiePage() {
                     context: selectedFile.textContent,
                     system_prompt: editor1Content,
                     output_format: editor2Content,
+                    model: selectedModel,
+                    agentId: selectedAgent,
                   }),
                 });
                 const data = await res.json();
