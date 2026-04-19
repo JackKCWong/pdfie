@@ -7,6 +7,11 @@ import { MastraCompositeStore } from '@mastra/core/storage';
 import { Observability, DefaultExporter, SensitiveDataFilter } from '@mastra/observability';
 import { textExtractAgent } from './agents/text-extract-agent';
 import { imageExtractAgent } from './agents/image-extract-agent';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 
 export const mastra = new Mastra({
@@ -15,7 +20,7 @@ export const mastra = new Mastra({
     id: 'composite-storage',
     default: new LibSQLStore({
       id: "mastra-storage",
-      url: "file:///d:/workspace/pdfie/mastra.db",
+      url: `file://${path.join(__dirname, 'mastra.db')}`,
     }),
     domains: {
       observability: await new DuckDBStore().getStore('observability'),
