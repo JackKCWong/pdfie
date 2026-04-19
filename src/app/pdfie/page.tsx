@@ -625,14 +625,13 @@ export default function PdfiePage() {
               </button>
             </div>
             <div className="flex-1 min-h-0 overflow-hidden">
-              {activeTab === "pdf" ? (
-                <div className="h-full overflow-y-auto">
-                  <PDFViewerFrame
-                    url={`${window.location.origin}${selectedFile.url}`}
-                    hash={selectedFile.hash}
-                  />
-                </div>
-              ) : activeTab === "textLayer" ? (
+              <div className="h-full overflow-y-auto" style={{ display: activeTab === "pdf" ? "block" : "none" }}>
+                <PDFViewerFrame
+                  url={`${window.location.origin}${selectedFile.url}`}
+                  hash={selectedFile.hash}
+                />
+              </div>
+              {activeTab === "textLayer" && (
                 selectedFile.textContent ? (
                   <MonacoEditor
                     language="markdown"
@@ -649,7 +648,8 @@ export default function PdfiePage() {
                     No text layer available
                   </div>
                 )
-              ) : activeTab === "extraction" ? (
+              )}
+              {activeTab === "extraction" && (
                 extractionResult ? (
                   <MonacoEditor
                     language="markdown"
@@ -666,7 +666,7 @@ export default function PdfiePage() {
                     Run extraction to see results
                   </div>
                 )
-              ) : null}
+              )}
             </div>
           </div>
         ) : (
