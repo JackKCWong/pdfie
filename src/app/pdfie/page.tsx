@@ -649,15 +649,17 @@ export default function PdfiePage() {
                 Extraction
               </button>
             </div>
-            <div className="flex-1 min-h-0 overflow-hidden">
-              <div className="h-full overflow-y-auto" style={{ display: activeTab === "pdf" ? "block" : "none" }}>
-                <PDFViewerFrame
-                  url={`${window.location.origin}${selectedFile.url}`}
-                  hash={selectedFile.hash}
-                />
+            <div className="flex-1 min-h-0 overflow-hidden relative">
+              <div className="absolute inset-0 overflow-y-auto" style={{ visibility: activeTab === "pdf" ? "visible" : "hidden" }}>
+                {selectedFile && (
+                  <PDFViewerFrame
+                    url={`${window.location.origin}${selectedFile.url}`}
+                    hash={selectedFile.hash}
+                  />
+                )}
               </div>
-              {activeTab === "textLayer" && (
-                selectedFile.textContent != null ? (
+              <div className="absolute inset-0 overflow-y-auto" style={{ visibility: activeTab === "textLayer" ? "visible" : "hidden" }}>
+                {selectedFile?.textContent != null ? (
                   <TextLayerEditor
                     value={selectedFile.textContent}
                     onChange={(val) => {
@@ -668,10 +670,10 @@ export default function PdfiePage() {
                   <div className="flex items-center justify-center h-full text-zinc-400">
                     No text layer available
                   </div>
-                )
-              )}
-              {activeTab === "extraction" && (
-                extractionResult ? (
+                )}
+              </div>
+              <div className="absolute inset-0 overflow-y-auto" style={{ visibility: activeTab === "extraction" ? "visible" : "hidden" }}>
+                {extractionResult ? (
                   <MonacoEditor
                     language="markdown"
                     value={extractionResult}
@@ -686,8 +688,8 @@ export default function PdfiePage() {
                   <div className="flex items-center justify-center h-full text-zinc-400">
                     Run extraction to see results
                   </div>
-                )
-              )}
+                )}
+              </div>
             </div>
           </div>
         ) : (
