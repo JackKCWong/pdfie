@@ -56,6 +56,17 @@ Top-level files define how your Mastra project is configured, built, and connect
 - Never modify `node_modules` or Mastra's database files directly
 - Never hardcode API keys (always use environment variables)
 
+### API Route Design
+
+**Use Next.js API routes** (`src/app/api/`) for standard API endpoints, not Mastra's `registerApiRoute()`.
+
+**When to use Mastra routes instead:**
+- Routes auto-registered with Mastra's OpenAPI docs
+- Tight integration with Mastra's auth/tracing middleware
+- Routes primarily for agent/workflow orchestration
+
+**Rationale:** Keeps all API routes in one predictable location, simplifies deployment, and avoids `/api` prefix conflicts (reserved for Mastra internal routes).
+
 ## Resources
 
 - [Mastra Documentation](https://mastra.ai/llms.txt)

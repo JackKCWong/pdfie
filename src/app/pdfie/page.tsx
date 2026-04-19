@@ -13,7 +13,7 @@ interface UploadedFile {
   textContent: string | null;
 }
 
-type TabType = "pdf" | "textLayer";
+type TabType = "pdf" | "textLayer" | "extraction";
 
 export default function PdfiePage() {
   const [files, setFiles] = useState<UploadedFile[]>([]);
@@ -22,6 +22,8 @@ export default function PdfiePage() {
   const [editor1Content, setEditor1Content] = useState("");
   const [editor2Content, setEditor2Content] = useState("");
   const [activeTab, setActiveTab] = useState<TabType>("pdf");
+  const [extractionResult, setExtractionResult] = useState<string | null>(null);
+  const [isExtracting, setIsExtracting] = useState(false);
 
   const extractTextFromPdf = async (url: string): Promise<string | null> => {
     try {
@@ -145,6 +147,36 @@ export default function PdfiePage() {
             ))}
           </ul>
         )}
+        <div className="mt-auto pt-6">
+          <button
+            type="button"
+            onClick={async () => {
+              if (!selectedFile?.textContent) return;
+              setIsExtracting(true);
+              try {
+                const res = await fetch("/api/text-extract", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    context: selectedFile.textContent,
+                    system_prompt: editor1Content,
+                    output_format: editor2Content,
+                  }),
+                });
+                const data = await res.json();
+                setExtractionResult(data.text);
+                setActiveTab("extraction");
+              } catch (err) {
+                console.error("Extraction failed:", err);
+              }
+              setIsExtracting(false);
+            }}
+            disabled={!selectedFile?.textContent || isExtracting}
+            className="w-full py-2 px-4 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isExtracting ? "Extracting..." : "Run"}
+          </button>
+        </div>
       </div>
       <div className="flex-1 flex">
         {selectedFile ? (
@@ -172,6 +204,17 @@ export default function PdfiePage() {
               >
                 Text Layer
               </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("extraction")}
+                className={`px-4 py-2 text-sm font-medium ${
+                  activeTab === "extraction"
+                    ? "text-zinc-900 border-b-2 border-zinc-900"
+                    : "text-zinc-500 hover:text-zinc-700"
+                }`}
+              >
+                Extraction
+              </button>
             </div>
             <div className="flex-1">
               {activeTab === "pdf" ? (
@@ -182,22 +225,41 @@ export default function PdfiePage() {
                   }}
                   style={{ width: "100%", height: "100%" }}
                 />
-              ) : selectedFile.textContent ? (
-                <MonacoEditor
-                  language="markdown"
-                  value={selectedFile.textContent}
-                  theme="vs"
-                  options={{
-                    minimap: { enabled: false },
-                    readOnly: true,
-                    wordWrap: "on",
-                  }}
-                />
-              ) : (
-                <div className="flex items-center justify-center h-full text-zinc-400">
-                  No text layer available
-                </div>
-              )}
+              ) : activeTab === "textLayer" ? (
+                selectedFile.textContent ? (
+                  <MonacoEditor
+                    language="markdown"
+                    value={selectedFile.textContent}
+                    theme="vs"
+                    options={{
+                      minimap: { enabled: false },
+                      readOnly: true,
+                      wordWrap: "on",
+                    }}
+                  />
+                ) : (
+                  <div className="flex items-center justify-center h-full text-zinc-400">
+                    No text layer available
+                  </div>
+                )
+              ) : activeTab === "extraction" ? (
+                extractionResult ? (
+                  <MonacoEditor
+                    language="markdown"
+                    value={extractionResult}
+                    theme="vs"
+                    options={{
+                      minimap: { enabled: false },
+                      readOnly: true,
+                      wordWrap: "on",
+                    }}
+                  />
+                ) : (
+                  <div className="flex items-center justify-center h-full text-zinc-400">
+                    Run extraction to see results
+                  </div>
+                )
+              ) : null}
             </div>
           </div>
         ) : (
