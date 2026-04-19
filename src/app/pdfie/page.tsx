@@ -175,6 +175,8 @@ export default function PdfiePage() {
   const [activeTab, setActiveTab] = useState<TabType>("pdf");
   const [extractionResult, setExtractionResult] = useState<string | null>(null);
   const [isExtracting, setIsExtracting] = useState(false);
+  const [isMultimodalExtracting, setIsMultimodalExtracting] = useState(false);
+  const [multimodalPages, setMultimodalPages] = useState<string>("");
   const [models, setModels] = useState<Model[]>([]);
   const [selectedModel, setSelectedModel] = useState<string>('');
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -295,6 +297,36 @@ export default function PdfiePage() {
   const handleDeleteFile = (hash: string) => {
     setFiles((prev) => prev.filter((f) => f.hash !== hash));
     setSelectedFile((prev) => (prev?.hash === hash ? null : prev));
+  };
+
+  const handleMultimodalExtract = async () => {
+    if (!selectedFile) return;
+    setIsMultimodalExtracting(true);
+    try {
+      const pdfUrl = `${window.location.origin}${selectedFile.url}`;
+      const response = await fetch(pdfUrl);
+      const pdfBlob = await response.blob();
+
+      const formData = new FormData();
+      formData.append("file", pdfBlob, selectedFile.name);
+      if (multimodalPages.trim()) {
+        const pages = multimodalPages.split(",").map(p => parseInt(p.trim(), 10)).filter(n => !isNaN(n));
+        if (pages.length > 0) {
+          formData.append("pages", JSON.stringify(pages));
+        }
+      }
+
+      const res = await fetch("/api/pdf-extract", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      setExtractionResult(data.text);
+      setActiveTab("extraction");
+    } catch (err) {
+      console.error("Multimodal extraction failed:", err);
+    }
+    setIsMultimodalExtracting(false);
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -531,6 +563,24 @@ export default function PdfiePage() {
             className="w-full py-2 px-4 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isExtracting ? "Extracting..." : "Run"}
+          </button>
+          <div className="mt-3">
+            <label className="block text-xs text-zinc-500 mb-1">Pages (optional)</label>
+            <input
+              type="text"
+              value={multimodalPages}
+              onChange={(e) => setMultimodalPages(e.target.value)}
+              placeholder="e.g., 1,2,3 or 1-5"
+              className="w-full px-3 py-2 text-sm border border-zinc-300 rounded-lg bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-500 mb-2"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={handleMultimodalExtract}
+            disabled={!selectedFile || isMultimodalExtracting}
+            className="w-full py-2 px-4 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isMultimodalExtracting ? "Extracting..." : "Run Multimodal"}
           </button>
         </div>
       </div>
