@@ -65,6 +65,30 @@ function Editor({ value, onChange, label }: EditorProps) {
   );
 }
 
+function TextLayerEditor({ value, onChange }: { value: string; onChange: (val: string) => void }) {
+  const [localValue, setLocalValue] = useState(value);
+
+  useEffect(() => {
+    setLocalValue(value);
+  }, [value]);
+
+  return (
+    <MonacoEditor
+      language="markdown"
+      value={localValue}
+      onChange={(val) => setLocalValue(val || "")}
+      theme="vs"
+      options={{ minimap: { enabled: false }, wordWrap: "on" }}
+      onMount={(editor) => {
+        editor.onDidBlurEditorWidget(() => {
+          const currentValue = editor.getValue();
+          onChange(currentValue);
+        });
+      }}
+    />
+  );
+}
+
 interface Model {
   id: string;
   provider: string;
@@ -443,6 +467,7 @@ export default function PdfiePage() {
                   onClick={() => {
                     setSelectedFile(file);
                     setActiveTab("pdf");
+                    setExtractionResult(null);
                   }}
                   className={`text-sm text-left truncate flex-1 px-2 py-1 rounded ${
                     selectedFile?.hash === file.hash
@@ -632,15 +657,11 @@ export default function PdfiePage() {
                 />
               </div>
               {activeTab === "textLayer" && (
-                selectedFile.textContent ? (
-                  <MonacoEditor
-                    language="markdown"
+                selectedFile.textContent != null ? (
+                  <TextLayerEditor
                     value={selectedFile.textContent}
-                    theme="vs"
-                    options={{
-                      minimap: { enabled: false },
-                      readOnly: true,
-                      wordWrap: "on",
+                    onChange={(val) => {
+                      setSelectedFile((prev) => prev ? { ...prev, textContent: val } : null);
                     }}
                   />
                 ) : (
