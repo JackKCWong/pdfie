@@ -11,7 +11,59 @@ interface Model {
   provider: string;
   providerName: string;
   model: string;
+  contextWindow?: number;
 }
+
+const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
+  "gpt-4o": 128000,
+  "gpt-4o-mini": 128000,
+  "gpt-4-turbo": 128000,
+  "gpt-4": 8192,
+  "gpt-4-32k": 32768,
+  "gpt-3.5-turbo": 16385,
+  "claude-opus-4-5": 200000,
+  "claude-sonnet-4-5": 200000,
+  "claude-haiku-4-5": 200000,
+  "claude-opus-4-1": 200000,
+  "claude-sonnet-4-5-20250929": 200000,
+  "claude-haiku-4-5-20251001": 200000,
+  "gemini-2.5-pro": 1048576,
+  "gemini-2.5-flash": 1048576,
+  "gemini-2.0-flash-lite": 1048576,
+  "gemini-3-pro-preview": 1048576,
+  "gemini-3-flash-preview": 1048576,
+  "qwen-max": 32768,
+  "qwen-plus": 131072,
+  "qwen-flash": 131072,
+  "qwen3-max": 131072,
+  "qwen3-235b-a22b": 131072,
+  "deepseek-chat": 128000,
+  "deepseek-v3.2": 128000,
+  "deepseek-reasoner": 128000,
+  "doubao-seed-1-8-251215": 256000,
+  "doubao-seed-1-6-vision-250815": 256000,
+  "kimi-k2": 128000,
+  "kimi-k2-0905-preview": 128000,
+  "ministral-14b-2512": 128000,
+  "mistral-large-2512": 128000,
+  "gpt-5": 128000,
+  "gpt-5-mini": 128000,
+  "gpt-5-pro": 128000,
+  "gpt-5-thinking": 128000,
+  "gpt-4.1": 128000,
+  "gpt-4.1-mini": 128000,
+  "gpt-4.1-nano": 128000,
+  "gpt-5.1": 128000,
+  "gpt-5.2": 400000,
+  "grok-4": 131072,
+  "grok-4.1": 131072,
+  "grok-4-1-fast-reasoning": 131072,
+  "grok-4-1-fast-non-reasoning": 131072,
+  "MiniMax-M1": 1000000,
+  "MiniMax-M2": 1000000,
+  "MiniMax-M2.1": 200000,
+  "MiniMax-M2.7": 1000000,
+};
 
 interface Agent {
   id: string;
@@ -70,6 +122,29 @@ export default function PdfiePage() {
   const [selectedAgent, setSelectedAgent] = useState<string>('');
   const isHydrated = useRef(false);
   const [windowSize, setWindowSize] = useState({ width: 0, height: 0 });
+  const [tokenCounts, setTokenCounts] = useState({ textLayer: 0, systemPrompt: 0, outputFormat: 0, extractionResult: 0 });
+
+  const calculateTokens = async (text: string): Promise<number> => {
+    try {
+      const tiktoken = await import("js-tiktoken");
+      const encoding = await tiktoken.getEncoding("o200k_base");
+      const tokens = encoding.encode(text);
+      return tokens.length;
+    } catch {
+      return 0;
+    }
+  };
+
+  useEffect(() => {
+    const updateTokens = async () => {
+      const textLayerTokens = selectedFile?.textContent ? await calculateTokens(selectedFile.textContent) : 0;
+      const systemPromptTokens = await calculateTokens(editor1Content);
+      const outputFormatTokens = await calculateTokens(editor2Content);
+      const extractionResultTokens = extractionResult ? await calculateTokens(extractionResult) : 0;
+      setTokenCounts({ textLayer: textLayerTokens, systemPrompt: systemPromptTokens, outputFormat: outputFormatTokens, extractionResult: extractionResultTokens });
+    };
+    updateTokens();
+  }, [selectedFile?.textContent, editor1Content, editor2Content, extractionResult]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -92,7 +167,11 @@ export default function PdfiePage() {
     fetch('/api/models')
       .then((res) => res.json())
       .then((data) => {
-        setModels(data.models || []);
+        const modelsWithContext: Model[] = (data.models || []).map((m: Model) => ({
+          ...m,
+          contextWindow: MODEL_CONTEXT_WINDOWS[m.model] || MODEL_CONTEXT_WINDOWS[m.id] || undefined,
+        }));
+        setModels(modelsWithContext);
       })
       .catch(console.error);
   }, []);
@@ -279,6 +358,53 @@ export default function PdfiePage() {
             ))}
           </ul>
         )}
+        <div className="mt-6 border border-zinc-200 rounded-lg p-3">
+          <h3 className="text-xs font-medium text-zinc-700 mb-2">Token Summary</h3>
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-zinc-500 border-b border-zinc-100">
+                <th className="text-left font-medium py-1">Component</th>
+                <th className="text-right font-medium py-1">Tokens</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr className="border-b border-zinc-100">
+                <td className="py-1 text-zinc-600">Text Layer</td>
+                <td className="py-1 text-right text-zinc-900 font-mono">{tokenCounts.textLayer.toLocaleString()}</td>
+              </tr>
+              <tr className="border-b border-zinc-100">
+                <td className="py-1 text-zinc-600">System Prompt</td>
+                <td className="py-1 text-right text-zinc-900 font-mono">{tokenCounts.systemPrompt.toLocaleString()}</td>
+              </tr>
+              <tr className="border-b border-zinc-100">
+                <td className="py-1 text-zinc-600">Output Format</td>
+                <td className="py-1 text-right text-zinc-900 font-mono">{tokenCounts.outputFormat.toLocaleString()}</td>
+              </tr>
+              <tr className="border-b border-zinc-100">
+                <td className="py-1 text-zinc-600">Extraction</td>
+                <td className="py-1 text-right text-zinc-900 font-mono">{tokenCounts.extractionResult.toLocaleString()}</td>
+              </tr>
+              <tr className="border-t border-zinc-200 font-medium">
+                <td className="py-1 text-zinc-700">Total Used</td>
+                <td className="py-1 text-right text-zinc-900 font-mono">
+                  {(tokenCounts.textLayer + tokenCounts.systemPrompt + tokenCounts.outputFormat + tokenCounts.extractionResult).toLocaleString()}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          {selectedModel && (() => {
+            const selectedModelInfo = models.find((m) => m.id === selectedModel);
+            const contextWindow = selectedModelInfo?.contextWindow;
+            const totalUsed = tokenCounts.textLayer + tokenCounts.systemPrompt + tokenCounts.outputFormat + tokenCounts.extractionResult;
+            if (!contextWindow) return <p className="mt-2 text-xs text-zinc-400">Context window: Unknown</p>;
+            const percentage = ((totalUsed / contextWindow) * 100).toFixed(1);
+            return (
+              <p className="mt-2 text-xs text-zinc-400">
+                Context: {contextWindow.toLocaleString()} | {percentage}% used
+              </p>
+            );
+          })()}
+        </div>
         <div className="mt-auto pt-6">
           <label className="block text-xs text-zinc-500 mb-1">Agent</label>
           <select
