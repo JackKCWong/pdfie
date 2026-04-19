@@ -122,6 +122,8 @@ export async function POST(request: NextRequest) {
       body: body,
     });
 
+    console.log('Agent response status:', agentResponse.status);
+
     const data = await agentResponse.json();
     return NextResponse.json({ text: data.text, pages: pagesToProcess, hashes: images.map(img => ({ pageNumber: img.pageNumber, hash: `${pdfHash}-${img.pageNumber}`, url: img.url })) });
   } catch (error) {
