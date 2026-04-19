@@ -8,7 +8,9 @@ export async function POST(request: NextRequest) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        messages: [`Context: ${context}\n\nTask: ${system_prompt}\n\nOutput Format: ${output_format}`],
+        instructions: system_prompt,
+        context: [context],
+        messages: [`Output Format: ${output_format}`],
         maxSteps: 1,
         model: model || undefined,
       }),

@@ -25,6 +25,8 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
     const pagesStr = formData.get('pages') as string | null;
+    const systemPrompt = formData.get('system_prompt') as string | null;
+    const outputFormat = formData.get('output_format') as string | null;
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
@@ -98,15 +100,16 @@ export async function POST(request: NextRequest) {
     library.destroy();
 
     const body = JSON.stringify({
+      instructions: systemPrompt,
       messages: [
         {
           role: 'user',
           content: [
+            ...content,
             {
               type: 'text',
-              text: 'Extract all text content from these PDF page images. Return the extracted text preserving structure as much as possible.',
+              text: outputFormat,
             },
-            ...content,
           ],
         },
       ],

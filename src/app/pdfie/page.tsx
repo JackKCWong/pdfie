@@ -315,6 +315,8 @@ export default function PdfiePage() {
           formData.append("pages", JSON.stringify(pages));
         }
       }
+      formData.append("system_prompt", editor1Content);
+      formData.append("output_format", editor2Content);
 
       const res = await fetch("/api/pdf-extract", {
         method: "POST",
