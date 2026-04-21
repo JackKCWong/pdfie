@@ -1,5 +1,5 @@
-
 import { Mastra } from '@mastra/core/mastra';
+import { MastraEditor } from '@mastra/editor'
 import { PinoLogger } from '@mastra/loggers';
 import { LibSQLStore } from '@mastra/libsql';
 import { DuckDBStore } from "@mastra/duckdb";
@@ -16,6 +16,8 @@ const __dirname = path.dirname(__filename);
 
 export const mastra = new Mastra({
   agents: { textExtractAgent, imageExtractAgent },
+  editor: new MastraEditor(),
+
   storage: new MastraCompositeStore({
     id: 'composite-storage',
     default: new LibSQLStore({

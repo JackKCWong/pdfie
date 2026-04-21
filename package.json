@@ -13,6 +13,7 @@
     "@hyzyla/pdfium": "^2.1.12",
     "@mastra/core": "^1.25.0",
     "@mastra/duckdb": "^1.1.2",
+    "@mastra/editor": "^0.7.16",
     "@mastra/libsql": "^1.8.1",
     "@mastra/loggers": "^1.1.1",
     "@mastra/memory": "^1.15.1",
